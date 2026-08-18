@@ -161,8 +161,8 @@ function downloadSshChat() {
                 fs.unlinkSync(tgzPath);
                 const nestedPath = path.join(BIN_DIR, "ssh-chat", "ssh-chat");
                 if (fs.existsSync(nestedPath)) {
-                  fs.renameSync(nestedPath, sshChatPath);
-                  fs.rmdirSync(path.join(BIN_DIR, "ssh-chat"), { recursive: true });
+                  fs.copyFileSync(nestedPath, sshChatPath);
+                  fs.rmSync(path.join(BIN_DIR, "ssh-chat"), { recursive: true });
                 }
                 if (!IS_WINDOWS) {
                   fs.chmodSync(sshChatPath, 0o755);
