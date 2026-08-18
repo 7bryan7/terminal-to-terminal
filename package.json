@@ -1,6 +1,6 @@
 {
   "name": "bryanterminalsshchat",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Browser-based SSH chat rooms - create terminal chat rooms accessible from any web browser",
   "license": "MIT",
   "keywords": ["ssh", "chat", "terminal", "web", "websocket", "real-time"],

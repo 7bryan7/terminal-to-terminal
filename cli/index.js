@@ -122,9 +122,9 @@ function downloadSshChat() {
     fs.mkdirSync(BIN_DIR, { recursive: true });
   }
 
-  const version = "v1.1.3";
-  const filename = `ssh-chat_${goPlatform}_${goArch}${ext}`;
-  const url = `https://github.com/shazow/ssh-chat/releases/download/${version}/${filename}.gz`;
+  const version = "v1.10";
+  const filename = `ssh-chat-${goPlatform}_${goArch}`;
+  const url = `https://github.com/shazow/ssh-chat/releases/download/${version}/${filename}.tgz`;
 
   return new Promise((resolve, reject) => {
     console.log(`  [..] Downloading from: ${url}`);
@@ -150,18 +150,19 @@ function downloadSshChat() {
             return;
           }
 
-          const gzPath = sshChatPath + ".gz";
-          const file = fs.createWriteStream(gzPath);
+          const tgzPath = sshChatPath + ".tgz";
+          const file = fs.createWriteStream(tgzPath);
           res.pipe(file);
 
           file.on("finish", () => {
             file.close(() => {
               try {
                 if (IS_WINDOWS) {
-                  execSync(`powershell -Command "Expand-Archive -Path '${gzPath}' -DestinationPath '${BIN_DIR}' -Force"`, { stdio: "ignore" });
+                  execSync(`tar -xzf "${tgzPath}" -C "${BIN_DIR}"`, { stdio: "ignore" });
                 } else {
-                  execSync(`gunzip -f "${gzPath}"`, { stdio: "ignore" });
+                  execSync(`tar -xzf "${tgzPath}" -C "${BIN_DIR}"`, { stdio: "ignore" });
                 }
+                fs.unlinkSync(tgzPath);
                 if (!IS_WINDOWS) {
                   fs.chmodSync(sshChatPath, 0o755);
                 }
@@ -178,7 +179,7 @@ function downloadSshChat() {
           });
 
           file.on("error", (err) => {
-            fs.unlink(gzPath, () => {});
+            fs.unlink(tgzPath, () => {});
             reject(err);
           });
         })
