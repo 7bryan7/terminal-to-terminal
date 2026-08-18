@@ -157,12 +157,13 @@ function downloadSshChat() {
           file.on("finish", () => {
             file.close(() => {
               try {
-                if (IS_WINDOWS) {
-                  execSync(`tar -xzf "${tgzPath}" -C "${BIN_DIR}"`, { stdio: "ignore" });
-                } else {
-                  execSync(`tar -xzf "${tgzPath}" -C "${BIN_DIR}"`, { stdio: "ignore" });
-                }
+                execSync(`tar -xzf "${tgzPath}" -C "${BIN_DIR}"`, { stdio: "ignore" });
                 fs.unlinkSync(tgzPath);
+                const nestedPath = path.join(BIN_DIR, "ssh-chat", "ssh-chat");
+                if (fs.existsSync(nestedPath)) {
+                  fs.renameSync(nestedPath, sshChatPath);
+                  fs.rmdirSync(path.join(BIN_DIR, "ssh-chat"), { recursive: true });
+                }
                 if (!IS_WINDOWS) {
                   fs.chmodSync(sshChatPath, 0o755);
                 }
