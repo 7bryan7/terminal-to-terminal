@@ -1,0 +1,9 @@
+node_modules/
+.next/
+.vercel/
+*.tgz
+bin/
+.env
+.env.local
+
+.npmrc
