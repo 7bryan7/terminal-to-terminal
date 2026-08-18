@@ -151,22 +151,41 @@ function downloadSshChat() {
           }
 
           const tgzPath = sshChatPath + ".tgz";
+          const extractDir = path.join(BIN_DIR, "_extract");
           const file = fs.createWriteStream(tgzPath);
           res.pipe(file);
 
           file.on("finish", () => {
             file.close(() => {
               try {
-                execSync(`tar -xzf "${tgzPath}" -C "${BIN_DIR}"`, { stdio: "ignore" });
-                fs.unlinkSync(tgzPath);
-                const nestedPath = path.join(BIN_DIR, "ssh-chat", "ssh-chat");
-                if (fs.existsSync(nestedPath)) {
-                  fs.copyFileSync(nestedPath, sshChatPath);
-                  fs.rmSync(path.join(BIN_DIR, "ssh-chat"), { recursive: true });
+                if (fs.existsSync(extractDir)) {
+                  fs.rmSync(extractDir, { recursive: true, force: true });
                 }
-                if (!IS_WINDOWS) {
+                fs.mkdirSync(extractDir, { recursive: true });
+                execSync(`tar -xzf "${tgzPath}" -C "${extractDir}"`, { stdio: "ignore" });
+                fs.unlinkSync(tgzPath);
+
+                let binaryPath = null;
+                const walk = (dir) => {
+                  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                    const full = path.join(dir, entry.name);
+                    if (entry.isDirectory()) {
+                      walk(full);
+                    } else if (entry.name === "ssh-chat" || entry.name === "ssh-chat.exe") {
+                      binaryPath = full;
+                      return;
+                    }
+                  }
+                };
+                walk(extractDir);
+
+                if (binaryPath) {
+                  fs.copyFileSync(binaryPath, sshChatPath);
                   fs.chmodSync(sshChatPath, 0o755);
                 }
+
+                fs.rmSync(extractDir, { recursive: true, force: true });
+
                 if (fs.existsSync(sshChatPath)) {
                   console.log("  [ok] ssh-chat downloaded successfully");
                   resolve(sshChatPath);
