@@ -226,21 +226,6 @@ async function installSshChat() {
 
   console.log("  [..] ssh-chat not found. Installing...\n");
 
-  if (checkCommand("go")) {
-    console.log("  [..] Go found. Building ssh-chat from source...");
-    try {
-      const gopath = execSync("go env GOPATH", { encoding: "utf-8" }).trim();
-      execSync("go install github.com/shazow/ssh-chat@latest", {
-        stdio: "inherit",
-        timeout: 120000,
-      });
-      console.log("  [ok] ssh-chat installed via Go");
-      return "ssh-chat";
-    } catch {
-      console.log("  [!!] Go install failed, trying download instead...");
-    }
-  }
-
   try {
     return await downloadSshChat();
   } catch (err) {
