@@ -21,7 +21,7 @@ export default function ChatRoom() {
   const fetchRoom = useCallback(async () => {
     if (!id) return;
     try {
-      const res = await fetch(`${API_BASE}/api/rooms/${id}`);
+      const res = await fetch(`${API_BASE}/api/rooms?id=${id}`);
       if (res.ok) {
         const data = await res.json();
         setRoom(data.room);

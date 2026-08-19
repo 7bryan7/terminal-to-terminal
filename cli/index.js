@@ -46,7 +46,7 @@ function hashPassword(pw) {
 }
 
 function apiUrl() {
-  return new URL(parseArg("--api") || "https://ssh-chat.vercel.app");
+  return new URL(parseArg("--api") || "https://terminal-to-terminal.vercel.app");
 }
 
 function apiRequest(method, apiPath, data) {
@@ -336,16 +336,14 @@ async function createRoom() {
       }
     }
   } catch {
-    // Pinggy not available
+    // Pinggy CLI not available
   }
 
   if (!pinggyUrl) {
-    console.log("  [!!] Pinggy CLI not found or tunnel failed.\n");
-    console.log("  You need to expose the bridge port publicly.");
-    console.log("  Option 1: Install Pinggy (https://pinggy.io)");
-    console.log(`    Run: pinggy -p ${bridgePort}`);
-    console.log("    Then enter the URL below.\n");
-    console.log("  Option 2: Use ngrok or any TCP tunnel.\n");
+    console.log("  [!!] Pinggy CLI not found.\n");
+    console.log("  To expose the bridge publicly, open a NEW terminal and run:\n");
+    console.log(`    ssh -p 443 -R0:localhost:${bridgePort} http@free.pinggy.io\n`);
+    console.log("  Copy the https:// URL it gives you and paste it below.\n");
 
     const rl = readline.createInterface({
       input: process.stdin,
@@ -353,7 +351,7 @@ async function createRoom() {
     });
     pinggyUrl = await new Promise((resolve) => {
       rl.question(
-        "  Enter tunnel URL (or press Enter to skip): ",
+        "  Paste the Pinggy HTTPS URL: ",
         (answer) => {
           rl.close();
           resolve(answer.trim() || `127.0.0.1:${bridgePort}`);
@@ -363,6 +361,11 @@ async function createRoom() {
   } else {
     console.log(`  [ok] Tunnel: ${pinggyUrl}`);
   }
+
+  pinggyUrl = pinggyUrl
+    .replace(/^tcp:\/\//, "")
+    .replace(/^https?:\/\//, "")
+    .replace(/\/+$/, "");
 
   console.log("  [4/4] Registering room on website...");
 
@@ -377,12 +380,12 @@ async function createRoom() {
       bridgeUrl: pinggyUrl,
     });
     if (registeredRoom.room) {
-      console.log("  [ok] Room registered");
+      console.log("  [ok] Room registered on website");
+    } else {
+      console.log(`  [!!] API error: ${JSON.stringify(registeredRoom)}`);
     }
-  } catch {
-    console.log(
-      "  [!!] Could not register on central API (room still works locally)"
-    );
+  } catch (err) {
+    console.log(`  [!!] Could not register on central API: ${err.message}`);
   }
 
   const roomId = registeredRoom?.room?.id || "local";
@@ -424,7 +427,7 @@ async function createRoom() {
   if (roomSecret) {
     heartbeatInterval = setInterval(async () => {
       try {
-        await apiRequest("PUT", `/api/rooms/${roomId}`, {
+        await apiRequest("PUT", `/api/rooms?id=${roomId}`, {
           memberCount: connectionCount,
           secret: roomSecret,
         });
@@ -439,7 +442,7 @@ async function createRoom() {
     if (heartbeatInterval) clearInterval(heartbeatInterval);
 
     try {
-      await apiRequest("DELETE", `/api/rooms/${roomId}`);
+      await apiRequest("DELETE", `/api/rooms?id=${roomId}`);
       console.log("  [ok] Room unregistered from website");
     } catch {
       // silent
