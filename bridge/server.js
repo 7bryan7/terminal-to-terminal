@@ -8,6 +8,8 @@ const BRIDGE_PORT = process.env.BRIDGE_PORT || 3001;
 const SSH_HOST = process.env.SSH_HOST || "127.0.0.1";
 const SSH_PORT = process.env.SSH_PORT || 2222;
 const ROOM_PASSWORD = process.env.ROOM_PASSWORD || null;
+const ROOM_NAME = process.env.ROOM_NAME || "Chat Room";
+const ROOM_HOST = process.env.ROOM_HOST || "Anonymous";
 
 let activeConnections = 0;
 
@@ -28,6 +30,19 @@ const server = http.createServer((req, res) => {
         status: "ok",
         connections: activeConnections,
         uptime: process.uptime(),
+      })
+    );
+  }
+
+  if (req.url === "/room") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    return res.end(
+      JSON.stringify({
+        name: ROOM_NAME,
+        host: ROOM_HOST,
+        passwordRequired: !!ROOM_PASSWORD,
+        memberCount: activeConnections,
+        uptime: Math.floor(process.uptime()),
       })
     );
   }

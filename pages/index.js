@@ -10,6 +10,8 @@ export default function Home() {
   const [joinModal, setJoinModal] = useState(null);
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [joinUrl, setJoinUrl] = useState("");
+  const [joinError, setJoinError] = useState("");
 
   const fetchRooms = useCallback(async () => {
     try {
@@ -46,7 +48,42 @@ export default function Home() {
       setError("Password is required");
       return;
     }
-    window.location.href = `/room/${joinModal.id}?pw=${encodeURIComponent(password)}`;
+    if (joinModal.bridgeUrl) {
+      window.location.href = `/room/direct?bridge=${encodeURIComponent(joinModal.bridgeUrl)}&pw=${encodeURIComponent(password)}&name=${encodeURIComponent(joinModal.name)}&host=${encodeURIComponent(joinModal.host)}`;
+    } else {
+      window.location.href = `/room/${joinModal.id}?pw=${encodeURIComponent(password)}`;
+    }
+  };
+
+  const handleJoinByUrl = async () => {
+    const raw = joinUrl.trim().replace(/\/+$/, "");
+    if (!raw) return;
+    setJoinError("");
+
+    const base = raw.startsWith("http") ? raw : `https://${raw}`;
+    const wsBase = base.replace(/^http/, "ws");
+
+    try {
+      const res = await fetch(`${base}/room`);
+      if (!res.ok) throw new Error("Room not found");
+      const info = await res.json();
+
+      if (info.passwordRequired) {
+        setJoinModal({
+          bridgeUrl: base,
+          wsUrl: wsBase,
+          name: info.name,
+          host: info.host,
+          passwordRequired: true,
+        });
+        setPassword("");
+        setError("");
+      } else {
+        window.location.href = `/room/direct?bridge=${encodeURIComponent(base)}&name=${encodeURIComponent(info.name)}&host=${encodeURIComponent(info.host)}`;
+      }
+    } catch (e) {
+      setJoinError("Cannot reach this room. Make sure the host is online and the URL is correct.");
+    }
   };
 
   return (
@@ -86,6 +123,25 @@ export default function Home() {
             <button className="btn btn-secondary btn-sm" onClick={fetchRooms}>
               Refresh
             </button>
+          </div>
+
+          <div className="join-url-section" style={{marginBottom: "2rem", padding: "1.5rem", border: "1px solid var(--border)", borderRadius: "8px", background: "var(--bg-secondary, rgba(255,255,255,0.03))"}}>
+            <h3 style={{margin: "0 0 0.5rem", fontSize: "1.1rem"}}>Join a Room</h3>
+            <p style={{margin: "0 0 1rem", fontSize: "0.85rem", opacity: 0.7}}>
+              Paste the room URL shared by the host
+            </p>
+            <div style={{display: "flex", gap: "0.5rem"}}>
+              <input
+                type="text"
+                placeholder="e.g., https://pouxz-27-5-231-89.free.pinggy.net"
+                value={joinUrl}
+                onChange={(e) => { setJoinUrl(e.target.value); setJoinError(""); }}
+                onKeyDown={(e) => e.key === "Enter" && handleJoinByUrl()}
+                style={{flex: 1, padding: "0.6rem 0.8rem", background: "var(--bg-primary, #0d1117)", border: "1px solid var(--border)", borderRadius: "6px", color: "var(--text, #e6edf3)", fontSize: "0.9rem"}}
+              />
+              <button className="btn btn-primary" onClick={handleJoinByUrl}>Join</button>
+            </div>
+            {joinError && <p style={{color: "var(--danger, #f85149)", fontSize: "0.8rem", marginTop: "0.5rem"}}>{joinError}</p>}
           </div>
 
           {loading ? (

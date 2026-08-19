@@ -299,6 +299,8 @@ async function createRoom() {
     SSH_HOST: "127.0.0.1",
     SSH_PORT: sshPort,
     ROOM_PASSWORD: password ? hashPassword(password) : "",
+    ROOM_NAME: roomName,
+    ROOM_HOST: hostName,
   };
 
   const bridgeProc = spawn(
@@ -399,14 +401,11 @@ async function createRoom() {
   console.log(`  Password  : ${password || "(none)"}`);
   console.log(`  Room ID   : ${roomId}`);
   console.log(`  SSH Port  : ${sshPort}`);
-  console.log(`  Bridge    : ${pinggyUrl}`);
   console.log("");
-  console.log("  Open the website and join from the browser!");
-  if (registeredRoom?.room) {
-    console.log(
-      `  Direct link: https://ssh-chat.vercel.app/room/${roomId}`
-    );
-  }
+  console.log("  Share this URL with your friends:");
+  console.log(`  \x1b[1;32m${pinggyUrl}\x1b[0m`);
+  console.log("");
+  console.log("  They paste it on the website to join!");
   console.log("\n  Press Ctrl+C to stop the room.\n");
 
   let connectionCount = 0;
