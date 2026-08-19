@@ -44,46 +44,31 @@ export default function Home() {
   };
 
   const submitJoin = () => {
-    if (!password.trim()) {
-      setError("Password is required");
-      return;
-    }
     if (joinModal.bridgeUrl) {
       window.location.href = `/room/direct?bridge=${encodeURIComponent(joinModal.bridgeUrl)}&pw=${encodeURIComponent(password)}&name=${encodeURIComponent(joinModal.name)}&host=${encodeURIComponent(joinModal.host)}`;
     } else {
+      if (!password.trim()) {
+        setError("Password is required");
+        return;
+      }
       window.location.href = `/room/${joinModal.id}?pw=${encodeURIComponent(password)}`;
     }
   };
 
-  const handleJoinByUrl = async () => {
+  const handleJoinByUrl = () => {
     const raw = joinUrl.trim().replace(/\/+$/, "");
     if (!raw) return;
     setJoinError("");
 
     const base = raw.startsWith("http") ? raw : `https://${raw}`;
-    const wsBase = base.replace(/^http/, "ws");
-
-    try {
-      const res = await fetch(`${base}/room`);
-      if (!res.ok) throw new Error("Room not found");
-      const info = await res.json();
-
-      if (info.passwordRequired) {
-        setJoinModal({
-          bridgeUrl: base,
-          wsUrl: wsBase,
-          name: info.name,
-          host: info.host,
-          passwordRequired: true,
-        });
-        setPassword("");
-        setError("");
-      } else {
-        window.location.href = `/room/direct?bridge=${encodeURIComponent(base)}&name=${encodeURIComponent(info.name)}&host=${encodeURIComponent(info.host)}`;
-      }
-    } catch (e) {
-      setJoinError("Cannot reach this room. Make sure the host is online and the URL is correct.");
-    }
+    setJoinModal({
+      bridgeUrl: base,
+      name: "Chat Room",
+      host: "Host",
+      passwordRequired: true,
+    });
+    setPassword("");
+    setError("");
   };
 
   return (
