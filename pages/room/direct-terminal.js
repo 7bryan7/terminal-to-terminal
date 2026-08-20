@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export default function DirectTerminal({ onStatus, onConnected }) {
   const termRef = useRef(null);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     let ws, term, fitAddon;
@@ -22,12 +23,16 @@ export default function DirectTerminal({ onStatus, onConnected }) {
         return;
       }
 
+      document.title = `${roomName} - SSH Chat`;
+
+      setReady(true);
+
+      await new Promise((r) => setTimeout(r, 50));
+
       if (!termRef.current) {
         onStatus("Terminal container not ready");
         return;
       }
-
-      document.title = `${roomName} - SSH Chat`;
 
       const wsUrl =
         bridgeBase.replace(/^http/, "ws") +
@@ -109,5 +114,13 @@ export default function DirectTerminal({ onStatus, onConnected }) {
     init();
   }, []);
 
-  return <div ref={termRef} className="terminal-container" />;
+  if (!ready) {
+    return <div className="terminal-container" style={{ padding: "1rem", color: "#8b949e" }}>Initializing terminal...</div>;
+  }
+
+  return (
+    <div className="terminal-container">
+      <div ref={termRef} style={{ flex: 1, padding: "4px" }} />
+    </div>
+  );
 }
