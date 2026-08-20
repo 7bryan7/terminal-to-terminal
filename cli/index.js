@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
 const { execSync, spawn } = require("child_process");
-const readline = require("readline");
 const crypto = require("crypto");
 const https = require("https");
 const http = require("http");
 const path = require("path");
-const os = require("os");
+const fs = require("fs");
+const { install: installCloudflared, bin: cloudflaredBin } = require("cloudflared");
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -129,108 +129,68 @@ async function createRoom() {
   await new Promise((r) => setTimeout(r, 1500));
   console.log("  [ok] Chat server ready");
 
-  console.log("  [2/3] Establishing Pinggy tunnel...");
+  console.log("  [2/3] Starting Cloudflare tunnel...");
 
-  let pinggyUrl = null;
-  let pinggyProc = null;
-
-  const URL_PATTERN = /https?:\/\/[a-z0-9\-]+\.pinggy\.(io|link)(?::\d+)?/i;
-  const RAW_PATTERN = /([a-z0-9\-]+\.pinggy\.(io|link))(?::(\d+))?/;
-
-  async function tryPinggyCli() {
+  if (!fs.existsSync(cloudflaredBin)) {
+    console.log("  Downloading cloudflared (one-time)...");
     try {
-      execSync("which pinggy", { stdio: "ignore", stderr: "ignore" });
-      const output = execSync(`pinggy -p ${bridgePort}`, {
-        encoding: "utf-8",
-        timeout: 15000,
-      });
-      const m = output.match(URL_PATTERN);
-      if (m) return m[0];
-      const m2 = output.match(RAW_PATTERN);
-      if (m2) return m2[3] ? `${m2[1]}:${m2[3]}` : m2[1];
-    } catch {}
-    return null;
-  }
-
-  async function trySshTunnel() {
-    return new Promise((resolve) => {
-      try {
-        const proc = spawn("ssh", [
-          "-p", "443",
-          "-R", `0:localhost:${bridgePort}`,
-          "http@free.pinggy.io",
-        ], { stdio: ["ignore", "pipe", "pipe"] });
-
-        let resolved = false;
-        let output = "";
-
-        const onData = (chunk) => {
-          output += chunk.toString();
-          const m = output.match(URL_PATTERN);
-          if (m && !resolved) {
-            resolved = true;
-            pinggyProc = proc;
-            resolve(m[0]);
-          }
-        };
-
-        proc.stdout.on("data", onData);
-        proc.stderr.on("data", onData);
-
-        proc.on("error", () => { if (!resolved) resolve(null); });
-        proc.on("close", () => { if (!resolved) resolve(null); });
-
-        setTimeout(() => {
-          if (!resolved) {
-            try { proc.kill("SIGTERM"); } catch {}
-            resolve(null);
-          }
-        }, 20000);
-      } catch {
-        resolve(null);
-      }
-    });
-  }
-
-  pinggyUrl = await tryPinggyCli();
-
-  if (!pinggyUrl) {
-    pinggyUrl = await trySshTunnel();
-  }
-
-  if (pinggyUrl) {
-    console.log(`  [ok] Tunnel: ${pinggyUrl}`);
-  } else {
-    console.log("  [!!] Pinggy CLI not found.\n");
-    console.log("  To expose the chat publicly, open a NEW terminal and run:\n");
-    console.log(`    ssh -p 443 -R0:localhost:${bridgePort} http@free.pinggy.io\n`);
-    console.log("  Copy the https:// URL it gives you and paste it below.\n");
-
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
-    pinggyUrl = await new Promise((resolve) => {
-      rl.question(
-        "  Paste the Pinggy HTTPS URL: ",
-        (answer) => {
-          rl.close();
-          resolve(answer.trim() || null);
-        }
-      );
-    });
-
-    if (!pinggyUrl) {
-      console.log("\n  [!!] No tunnel URL provided.");
-      console.log("  Room will run locally but no one can join from the browser.\n");
+      await installCloudflared(cloudflaredBin);
+      console.log("  [ok] Cloudflared installed");
+    } catch (err) {
+      console.error(`  Error installing cloudflared: ${err.message}`);
       process.exit(1);
     }
   }
 
-  pinggyUrl = pinggyUrl
-    .replace(/^tcp:\/\//, "")
-    .replace(/^https?:\/\//, "")
-    .replace(/\/+$/, "");
+  console.log("  [ok] Cloudflared ready");
+
+  let publicUrl = null;
+  const cloudflaredProc = spawn(
+    cloudflaredBin,
+    ["tunnel", "--url", `http://localhost:${bridgePort}`],
+    { stdio: ["ignore", "pipe", "pipe"] }
+  );
+
+  publicUrl = await new Promise((resolve) => {
+    let resolved = false;
+    let output = "";
+
+    const onData = (chunk) => {
+      output += chunk.toString();
+      const m = output.match(/https:\/\/[a-z0-9\-]+\.trycloudflare\.com/);
+      if (m && !resolved) {
+        resolved = true;
+        resolve(m[0]);
+      }
+    };
+
+    cloudflaredProc.stdout.on("data", onData);
+    cloudflaredProc.stderr.on("data", onData);
+
+    cloudflaredProc.on("error", () => {
+      if (!resolved) resolve(null);
+    });
+    cloudflaredProc.on("close", () => {
+      if (!resolved) resolve(null);
+    });
+
+    setTimeout(() => {
+      if (!resolved) {
+        try {
+          cloudflaredProc.kill("SIGTERM");
+        } catch {}
+        resolve(null);
+      }
+    }, 20000);
+  });
+
+  if (!publicUrl) {
+    console.log("  [!!] Failed to start Cloudflare tunnel.\n");
+    console.log("  Make sure cloudflared is installed and try again.\n");
+    process.exit(1);
+  }
+
+  console.log(`  [ok] Tunnel: ${publicUrl}`);
 
   console.log("  [3/3] Registering room on website...");
 
@@ -242,7 +202,7 @@ async function createRoom() {
       name: roomName,
       host: hostName,
       password: passwordHash,
-      bridgeUrl: pinggyUrl,
+      bridgeUrl: publicUrl,
     });
     if (registeredRoom.room) {
       console.log("  [ok] Room registered on website");
@@ -265,7 +225,7 @@ async function createRoom() {
   console.log(`  Room ID   : ${roomId}`);
   console.log("");
   console.log("  Share this URL with your friends:");
-  console.log(`  \x1b[1;32m${pinggyUrl}\x1b[0m`);
+  console.log(`  \x1b[1;32m${publicUrl}\x1b[0m`);
   console.log("");
   console.log("  They paste it on the website to join!");
   console.log("\n  Press Ctrl+C to stop the room.\n");
@@ -307,7 +267,7 @@ async function createRoom() {
       bridgeProc.kill("SIGTERM");
     } catch {}
     try {
-      if (pinggyProc) pinggyProc.kill("SIGTERM");
+      cloudflaredProc.kill("SIGTERM");
     } catch {}
 
     setTimeout(() => {

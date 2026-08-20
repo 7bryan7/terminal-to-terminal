@@ -156,8 +156,8 @@ export default function CreateRoom() {
                 <div className="step-content">
                   <h3>Wait for &quot;Room is live!&quot;</h3>
                   <p>
-                    The command sets up SSH server, tunnel, and bridge. When you
-                    see &quot;Room is live!&quot;, your room is ready.
+                    The command starts the chat server and creates a secure
+                    tunnel. When you see &quot;Room is live!&quot;, your room is ready.
                   </p>
                 </div>
               </div>

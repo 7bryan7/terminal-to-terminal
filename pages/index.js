@@ -118,7 +118,7 @@ export default function Home() {
             <div style={{display: "flex", gap: "0.5rem"}}>
               <input
                 type="text"
-                placeholder="e.g., https://pouxz-27-5-231-89.free.pinggy.net"
+                placeholder="e.g., https://rapid-hills-film.trycloudflare.com"
                 value={joinUrl}
                 onChange={(e) => { setJoinUrl(e.target.value); setJoinError(""); }}
                 onKeyDown={(e) => e.key === "Enter" && handleJoinByUrl()}

@@ -1,14 +1,15 @@
 {
   "name": "bryanterminalsshchat",
-  "version": "1.0.8",
-  "description": "Browser-based chat rooms - create real-time chat rooms accessible from any web browser via SSH tunneling",
+  "version": "1.0.9",
+  "description": "Browser-based chat rooms - create real-time chat rooms accessible from any web browser via Cloudflare tunnels",
   "license": "MIT",
   "keywords": [
     "chat",
     "web",
     "websocket",
     "real-time",
-    "ssh-tunnel",
+    "cloudflare",
+    "tunnel",
     "browser"
   ],
   "bin": {
@@ -26,6 +27,7 @@
     "create": "node cli/index.js create"
   },
   "dependencies": {
+    "cloudflared": "^0.7.3",
     "ws": "^8.21.3"
   },
   "devDependencies": {

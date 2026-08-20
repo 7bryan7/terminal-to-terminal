@@ -58,6 +58,7 @@ export default function ChatRoom({ onStatus, onConnected }) {
       wsRef.current = ws;
 
       ws.onopen = () => {
+        setDisconnected(false);
         onConnected(true);
         ws.send(
           JSON.stringify({
