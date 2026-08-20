@@ -132,22 +132,75 @@ async function createRoom() {
   console.log("  [2/3] Establishing Pinggy tunnel...");
 
   let pinggyUrl = null;
-  try {
-    if (execSync("which pinggy", { stdio: "ignore", stderr: "ignore" })) {
+  let pinggyProc = null;
+
+  const URL_PATTERN = /https?:\/\/[a-z0-9\-]+\.pinggy\.(io|link)(?::\d+)?/i;
+  const RAW_PATTERN = /([a-z0-9\-]+\.pinggy\.(io|link))(?::(\d+))?/;
+
+  async function tryPinggyCli() {
+    try {
+      execSync("which pinggy", { stdio: "ignore", stderr: "ignore" });
       const output = execSync(`pinggy -p ${bridgePort}`, {
         encoding: "utf-8",
         timeout: 15000,
       });
-      const match = output.match(/([a-z0-9\-]+\.pinggy\.io)(?::(\d+))?/);
-      if (match) {
-        pinggyUrl = match[2] ? `${match[1]}:${match[2]}` : match[1];
-      }
-    }
-  } catch {
-    // Pinggy CLI not available
+      const m = output.match(URL_PATTERN);
+      if (m) return m[0];
+      const m2 = output.match(RAW_PATTERN);
+      if (m2) return m2[3] ? `${m2[1]}:${m2[3]}` : m2[1];
+    } catch {}
+    return null;
   }
 
+  async function trySshTunnel() {
+    return new Promise((resolve) => {
+      try {
+        const proc = spawn("ssh", [
+          "-p", "443",
+          "-R", `0:localhost:${bridgePort}`,
+          "http@free.pinggy.io",
+        ], { stdio: ["ignore", "pipe", "pipe"] });
+
+        let resolved = false;
+        let output = "";
+
+        const onData = (chunk) => {
+          output += chunk.toString();
+          const m = output.match(URL_PATTERN);
+          if (m && !resolved) {
+            resolved = true;
+            pinggyProc = proc;
+            resolve(m[0]);
+          }
+        };
+
+        proc.stdout.on("data", onData);
+        proc.stderr.on("data", onData);
+
+        proc.on("error", () => { if (!resolved) resolve(null); });
+        proc.on("close", () => { if (!resolved) resolve(null); });
+
+        setTimeout(() => {
+          if (!resolved) {
+            try { proc.kill("SIGTERM"); } catch {}
+            resolve(null);
+          }
+        }, 20000);
+      } catch {
+        resolve(null);
+      }
+    });
+  }
+
+  pinggyUrl = await tryPinggyCli();
+
   if (!pinggyUrl) {
+    pinggyUrl = await trySshTunnel();
+  }
+
+  if (pinggyUrl) {
+    console.log(`  [ok] Tunnel: ${pinggyUrl}`);
+  } else {
     console.log("  [!!] Pinggy CLI not found.\n");
     console.log("  To expose the chat publicly, open a NEW terminal and run:\n");
     console.log(`    ssh -p 443 -R0:localhost:${bridgePort} http@free.pinggy.io\n`);
@@ -172,8 +225,6 @@ async function createRoom() {
       console.log("  Room will run locally but no one can join from the browser.\n");
       process.exit(1);
     }
-  } else {
-    console.log(`  [ok] Tunnel: ${pinggyUrl}`);
   }
 
   pinggyUrl = pinggyUrl
@@ -254,6 +305,9 @@ async function createRoom() {
 
     try {
       bridgeProc.kill("SIGTERM");
+    } catch {}
+    try {
+      if (pinggyProc) pinggyProc.kill("SIGTERM");
     } catch {}
 
     setTimeout(() => {
