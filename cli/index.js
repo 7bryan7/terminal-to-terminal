@@ -341,10 +341,16 @@ async function createRoom() {
         "  Paste the Pinggy HTTPS URL: ",
         (answer) => {
           rl.close();
-          resolve(answer.trim() || `127.0.0.1:${bridgePort}`);
+          resolve(answer.trim() || null);
         }
       );
     });
+
+    if (!pinggyUrl) {
+      console.log("\n  [!!] No tunnel URL provided.");
+      console.log("  Room will run locally but no one can join from the browser.\n");
+      process.exit(1);
+    }
   } else {
     console.log(`  [ok] Tunnel: ${pinggyUrl}`);
   }

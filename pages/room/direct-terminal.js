@@ -22,6 +22,11 @@ export default function DirectTerminal({ onStatus, onConnected }) {
         return;
       }
 
+      if (!termRef.current) {
+        onStatus("Terminal container not ready");
+        return;
+      }
+
       document.title = `${roomName} - SSH Chat`;
 
       const wsUrl =
