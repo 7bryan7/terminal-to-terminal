@@ -13,7 +13,7 @@ export default function CreateRoom() {
     const name = roomName.trim() || "My Room";
     const pw = password.trim();
     const host = hostName.trim() || "Anonymous";
-    let cmd = `npx bryanterminalsshchat create --name "${name}" --host "${host}"`;
+    let cmd = `npx bryanterminalsshchat@1.0.9 create --name "${name}" --host "${host}"`;
     if (pw) cmd += ` --password "${pw}"`;
     return cmd;
   };
