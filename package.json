@@ -1,23 +1,22 @@
 {
   "name": "bryanterminalsshchat",
-  "version": "1.0.7",
-  "description": "Browser-based SSH chat rooms - create terminal chat rooms accessible from any web browser",
+  "version": "1.0.8",
+  "description": "Browser-based chat rooms - create real-time chat rooms accessible from any web browser via SSH tunneling",
   "license": "MIT",
   "keywords": [
-    "ssh",
     "chat",
-    "terminal",
     "web",
     "websocket",
-    "real-time"
+    "real-time",
+    "ssh-tunnel",
+    "browser"
   ],
   "bin": {
     "sshchat": "./cli/index.js"
   },
   "files": [
     "cli/",
-    "bridge/",
-    "bin/"
+    "bridge/"
   ],
   "scripts": {
     "dev": "next dev",
@@ -27,7 +26,6 @@
     "create": "node cli/index.js create"
   },
   "dependencies": {
-    "ssh2": "^1.17.0",
     "ws": "^8.21.3"
   },
   "devDependencies": {
@@ -35,10 +33,7 @@
     "next": "^14.2.0",
     "prettier": "^3.2.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "xterm": "^5.3.0",
-    "xterm-addon-fit": "^0.8.0",
-    "xterm-addon-web-links": "^0.9.0"
+    "react-dom": "^18.2.0"
   },
   "engines": {
     "node": ">=16.0.0"

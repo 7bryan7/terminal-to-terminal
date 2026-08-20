@@ -1,12 +1,14 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 
-const TerminalComponent = dynamic(() => import("./direct-terminal"), {
+const ChatRoom = dynamic(() => import("./direct-terminal"), {
   ssr: false,
   loading: () => (
-    <div style={{ padding: "2rem", color: "#8b949e" }}>Loading terminal...</div>
+    <div className="chat-container">
+      <div className="chat-loading">Connecting to chat...</div>
+    </div>
   ),
 });
 
@@ -17,7 +19,7 @@ export default function DirectRoom() {
   return (
     <>
       <Head>
-        <title>Room - SSH Chat</title>
+        <title>Chat - SSH Chat</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
@@ -33,9 +35,7 @@ export default function DirectRoom() {
         </div>
       </header>
 
-      <main className="terminal-page">
-        <TerminalComponent onStatus={setStatus} onConnected={setConnected} />
-      </main>
+      <ChatRoom onStatus={setStatus} onConnected={setConnected} />
     </>
   );
 }

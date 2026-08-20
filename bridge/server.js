@@ -1,17 +1,50 @@
 const http = require("http");
 const { WebSocketServer } = require("ws");
-const { Client } = require("ssh2");
 const crypto = require("crypto");
 const url = require("url");
 
 const BRIDGE_PORT = process.env.BRIDGE_PORT || 3001;
-const SSH_HOST = process.env.SSH_HOST || "127.0.0.1";
-const SSH_PORT = process.env.SSH_PORT || 2222;
 const ROOM_PASSWORD = process.env.ROOM_PASSWORD || null;
 const ROOM_NAME = process.env.ROOM_NAME || "Chat Room";
 const ROOM_HOST = process.env.ROOM_HOST || "Anonymous";
 
+const MAX_HISTORY = 50;
+
 let activeConnections = 0;
+let clients = new Map();
+let messageHistory = [];
+let typingTimers = new Map();
+
+function broadcast(msg, excludeWs) {
+  const data = JSON.stringify(msg);
+  for (const [ws] of clients) {
+    if (ws !== excludeWs && ws.readyState === ws.OPEN) {
+      ws.send(data);
+    }
+  }
+}
+
+function broadcastAll(msg) {
+  const data = JSON.stringify(msg);
+  for (const [ws] of clients) {
+    if (ws.readyState === ws.OPEN) {
+      ws.send(data);
+    }
+  }
+}
+
+function getUserList() {
+  return Array.from(clients.values()).map((c) => c.name);
+}
+
+function timestamp() {
+  const now = new Date();
+  return now.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
 
 const server = http.createServer((req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -54,106 +87,150 @@ const server = http.createServer((req, res) => {
 const wss = new WebSocketServer({ server });
 
 wss.on("connection", (ws, req) => {
-  const params = url.parse(req.url, true).query;
-  const clientPassword = params.pw || "";
+  let authenticated = false;
 
-  if (ROOM_PASSWORD) {
-    const hash = crypto
-      .createHash("sha256")
-      .update(clientPassword)
-      .digest("hex")
-      .slice(0, 16);
-    if (hash !== ROOM_PASSWORD) {
-      ws.close(4001, "Incorrect password");
-      return;
+  const timeout = setTimeout(() => {
+    if (!authenticated) {
+      ws.close(4002, "Authentication timeout");
     }
-  }
+  }, 5000);
 
-  activeConnections++;
-  console.log(
-    `[bridge] Client connected (${activeConnections} active)`
-  );
+  ws.on("message", (raw) => {
+    let msg;
+    try {
+      msg = JSON.parse(raw.toString());
+    } catch {
+      return ws.send(JSON.stringify({ type: "error", text: "Invalid message" }));
+    }
 
-  const sshConn = new Client();
-
-  sshConn.on("ready", () => {
-    console.log("[bridge] SSH connection ready");
-
-    sshConn.shell({ term: "xterm-256color" }, (err, stream) => {
-      if (err) {
-        console.error("[bridge] Shell error:", err.message);
-        ws.close(1011, "Shell error");
-        return;
+    if (!authenticated) {
+      if (msg.type !== "auth") {
+        return ws.send(JSON.stringify({ type: "error", text: "Send auth first" }));
       }
 
-      stream.on("close", () => {
-        console.log("[bridge] SSH stream closed");
-        ws.close(1000, "SSH stream closed");
-      });
+      const name = (msg.name || "").trim().slice(0, 20) || "Anonymous";
 
-      stream.stderr.on("data", (data) => {
-        ws.send(data.toString());
-      });
-
-      ws.on("message", (data) => {
-        const msg = data.toString();
-        stream.write(msg);
-      });
-
-      stream.on("data", (data) => {
-        if (ws.readyState === ws.OPEN) {
-          ws.send(data.toString());
+      if (ROOM_PASSWORD) {
+        const clientHash = crypto
+          .createHash("sha256")
+          .update((msg.pw || "").trim())
+          .digest("hex")
+          .slice(0, 16);
+        if (clientHash !== ROOM_PASSWORD) {
+          clearTimeout(timeout);
+          return ws.close(4001, "Incorrect password");
         }
-      });
-    });
-  });
+      }
 
-  sshConn.on("error", (err) => {
-    console.error("[bridge] SSH error:", err.message);
-    if (ws.readyState === ws.OPEN) {
-      ws.close(1011, "SSH connection failed: " + err.message);
+      clearTimeout(timeout);
+      authenticated = true;
+      activeConnections++;
+      clients.set(ws, { name });
+
+      console.log(
+        `[chat] ${name} joined (${activeConnections} online)`
+      );
+
+      const history = messageHistory.slice(-MAX_HISTORY);
+
+      ws.send(
+        JSON.stringify({
+          type: "welcome",
+          name,
+          users: getUserList(),
+          messages: history,
+          room: { name: ROOM_NAME, host: ROOM_HOST },
+        })
+      );
+
+      broadcastAll({
+        type: "join",
+        user: name,
+        users: getUserList(),
+        time: timestamp(),
+      });
+
+      return;
+    }
+
+    if (msg.type === "message") {
+      const text = (msg.text || "").trim();
+      if (!text || text.length > 2000) return;
+
+      const user = clients.get(ws).name;
+      const chatMsg = {
+        type: "message",
+        user,
+        text,
+        time: timestamp(),
+      };
+
+      messageHistory.push(chatMsg);
+      if (messageHistory.length > MAX_HISTORY) {
+        messageHistory = messageHistory.slice(-MAX_HISTORY);
+      }
+
+      broadcastAll(chatMsg);
+
+      if (typingTimers.has(user)) {
+        clearTimeout(typingTimers.get(user));
+        typingTimers.delete(user);
+      }
+      return;
+    }
+
+    if (msg.type === "typing") {
+      const user = clients.get(ws).name;
+
+      broadcast(
+        { type: "typing", user },
+        ws
+      );
+
+      if (typingTimers.has(user)) {
+        clearTimeout(typingTimers.get(user));
+      }
+      typingTimers.set(
+        user,
+        setTimeout(() => {
+          typingTimers.delete(user);
+          broadcast({ type: "typing-stop", user });
+        }, 3000)
+      );
+      return;
     }
   });
 
-  sshConn.on("close", () => {
-    console.log("[bridge] SSH connection closed");
-  });
+  ws.on("close", () => {
+    const info = clients.get(ws);
+    if (info) {
+      activeConnections--;
+      const user = info.name;
+      clients.delete(ws);
+      console.log(
+        `[chat] ${user} left (${activeConnections} online)`
+      );
 
-  sshConn.connect({
-    host: SSH_HOST,
-    port: SSH_PORT,
-    username: "chat",
-    password: "chat",
-    readyTimeout: 10000,
-    algorithms: {
-      kex: [
-        "ecdh-sha2-nistp256",
-        "ecdh-sha2-nistp384",
-        "ecdh-sha2-nistp521",
-        "diffie-hellman-group-exchange-sha256",
-        "diffie-hellman-group14-sha256",
-        "diffie-hellman-group14-sha1",
-      ],
-    },
-  });
+      if (typingTimers.has(user)) {
+        clearTimeout(typingTimers.get(user));
+        typingTimers.delete(user);
+      }
 
-  ws.on("close", (code, reason) => {
-    activeConnections--;
-    console.log(
-      `[bridge] Client disconnected (code: ${code}, ${activeConnections} active)`
-    );
-    sshConn.end();
+      broadcastAll({
+        type: "leave",
+        user,
+        users: getUserList(),
+        time: timestamp(),
+      });
+    }
   });
 
   ws.on("error", (err) => {
-    console.error("[bridge] WebSocket error:", err.message);
-    activeConnections--;
-    sshConn.end();
+    console.error("[chat] WebSocket error:", err.message);
   });
 });
 
 server.listen(BRIDGE_PORT, () => {
-  console.log(`[bridge] WebSocket bridge listening on port ${BRIDGE_PORT}`);
-  console.log(`[bridge] Connecting to SSH at ${SSH_HOST}:${SSH_PORT}`);
-  console.log(`[bridge] Password protection: ${ROOM_PASSWORD ? "ON" : "OFF"}`);
+  console.log(`[chat] Chat server listening on port ${BRIDGE_PORT}`);
+  console.log(`[chat] Password protection: ${ROOM_PASSWORD ? "ON" : "OFF"}`);
 });

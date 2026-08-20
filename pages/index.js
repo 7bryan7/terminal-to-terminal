@@ -74,7 +74,7 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>SSH Chat - Browser-based Terminal Chat Rooms</title>
+        <title>SSH Chat - Browser-based Chat Rooms</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
@@ -95,11 +95,11 @@ export default function Home() {
         <div className="container">
           <div className="hero">
             <h1>
-              Terminal Chat, <span className="highlight">Browser Access</span>
+              Real-time Chat, <span className="highlight">Browser Access</span>
             </h1>
             <p>
-              Real-time SSH chat rooms accessible from any browser. No SSH
-              client or terminal knowledge needed to join.
+              Create instant chat rooms from your terminal. Anyone joins from
+              their browser &mdash; no install needed.
             </p>
           </div>
 
@@ -184,7 +184,7 @@ export default function Home() {
       <footer className="footer">
         <div className="container">
           SSH Chat Web &mdash; Computer Networks Mini Project &mdash; SSH
-          Tunneling + WebSocket + Browser Terminal
+          Tunneling + WebSocket + Real-time Chat
         </div>
       </footer>
 
